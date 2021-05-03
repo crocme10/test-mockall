@@ -397,7 +397,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "test-type-erasure"
+name = "test-mockall"
 version = "0.1.0"
 dependencies = [
  "async-trait",

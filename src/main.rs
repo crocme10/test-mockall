@@ -4,7 +4,7 @@ use futures::stream::{Stream, StreamExt};
 
 // This trait is not object safe.
 #[async_trait]
-// #[mockall::automock]
+#[cfg_attr(test, mockall::automock)]
 trait Generic {
     async fn generic_fn<S>(&self, mut stream: S) -> Result<i32, std::io::Error>
     where
