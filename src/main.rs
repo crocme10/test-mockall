@@ -35,7 +35,7 @@ trait ErasedGeneric {
     // Replace the generic parameter with a trait object.
     async fn erased_fn(
         &self,
-        stream: &mut (dyn Stream<Item = i32> + Send + Sync + Unpin),
+        stream: &'static mut (dyn Stream<Item = i32> + Send + Sync + Unpin + 'static),
     ) -> Result<i32, std::io::Error>;
 }
 
@@ -61,7 +61,7 @@ where
 {
     async fn erased_fn(
         &self,
-        stream: &mut (dyn Stream<Item = i32> + Send + Sync + Unpin),
+        stream: &'static mut (dyn Stream<Item = i32> + Send + Sync + Unpin + 'static),
     ) -> Result<i32, std::io::Error> {
         println!("Erased::erased for T: Generic");
         self.generic_fn(stream).await
