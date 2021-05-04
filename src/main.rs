@@ -8,7 +8,7 @@ use futures::stream::{Stream, StreamExt};
 trait Generic {
     async fn generic_fn<S>(&self, mut stream: S) -> Result<i32, std::io::Error>
     where
-        S: Stream<Item = i32> + Send + Sync + Unpin;
+        S: Stream<Item = i32> + Send + Sync + Unpin + 'static;
 }
 
 // Implement the trait for boxed pointers to some type `T` which
@@ -20,7 +20,7 @@ where
 {
     async fn generic_fn<S>(&self, stream: S) -> Result<i32, std::io::Error>
     where
-        S: Stream<Item = i32> + Send + Sync + Unpin,
+        S: Stream<Item = i32> + Send + Sync + Unpin + 'static,
     {
         println!("Generic::generic for Box<T> T: Generic");
         (**self).generic_fn(stream).await
@@ -45,7 +45,7 @@ trait ErasedGeneric {
 impl Generic for (dyn ErasedGeneric + Send + Sync) {
     async fn generic_fn<S>(&self, mut stream: S) -> Result<i32, std::io::Error>
     where
-        S: Stream<Item = i32> + Send + Sync + Unpin,
+        S: Stream<Item = i32> + Send + Sync + Unpin + 'static,
     {
         println!("Generic::generic for dyn Erased");
         self.erased_fn(&mut stream).await
@@ -77,7 +77,7 @@ async fn main() {
     impl Generic for S {
         async fn generic_fn<S>(&self, stream: S) -> Result<i32, std::io::Error>
         where
-            S: Stream<Item = i32> + Send + Sync + Unpin,
+            S: Stream<Item = i32> + Send + Sync + Unpin + 'static,
         {
             let sum: i32 = stream.collect::<Vec<i32>>().await.iter().sum();
             Ok(sum)
