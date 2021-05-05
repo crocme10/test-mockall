@@ -1,14 +1,16 @@
 use async_trait::async_trait;
-use futures::stream::{Stream, StreamExt};
+use futures::stream::{Stream, StreamEx};
 
 mod gen;
 mod mock;
+
 
 use crate::gen::{ErasedGeneric, Generic};
 
 struct S;
 
 #[async_trait]
+
 impl Generic for S {
     async fn generic_fn<S>(&self, stream: S) -> Result<i32, std::io::Error>
     where
@@ -30,6 +32,6 @@ async fn main() {
     //
     // THIS LINE LOOKS LIKE MAGIC. We have a value of type trait
     // object and we are invoking a generic method on it.
-    let res = trait_object.generic_fn(stream).await;
+    let res = trait_object.generic_fn(&mut stream).await;
     println!("res: {}", res.expect("res"));
 }
