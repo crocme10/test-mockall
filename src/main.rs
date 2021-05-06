@@ -3,8 +3,8 @@ use futures::stream::{Stream, StreamExt};
 // This code taken from David Tolnay's erased-serde library,
 
 // This trait is not object safe.
-#[async_trait]
 #[cfg_attr(test, mockall::automock)]
+#[async_trait]
 trait Generic {
     async fn generic_fn<S>(&self, mut stream: S) -> Result<i32, std::io::Error>
     where
@@ -35,7 +35,7 @@ trait ErasedGeneric {
     // Replace the generic parameter with a trait object.
     async fn erased_fn(
         &self,
-        stream: &'static mut (dyn Stream<Item = i32> + Send + Sync + Unpin + 'static),
+        stream: Box<dyn Stream<Item = i32> + Send + Sync + Unpin + 'static>,
     ) -> Result<i32, std::io::Error>;
 }
 
@@ -43,12 +43,12 @@ trait ErasedGeneric {
 // object-safe trait.
 #[async_trait]
 impl Generic for (dyn ErasedGeneric + Send + Sync) {
-    async fn generic_fn<S>(&self, mut stream: S) -> Result<i32, std::io::Error>
+    async fn generic_fn<S>(&self, stream: S) -> Result<i32, std::io::Error>
     where
         S: Stream<Item = i32> + Send + Sync + Unpin + 'static,
     {
         println!("Generic::generic for dyn Erased");
-        self.erased_fn(&mut stream).await
+        self.erased_fn(Box::new(stream)).await
     }
 }
 
@@ -61,10 +61,23 @@ where
 {
     async fn erased_fn(
         &self,
-        stream: &'static mut (dyn Stream<Item = i32> + Send + Sync + Unpin + 'static),
+        stream: Box<dyn Stream<Item = i32> + Send + Sync + Unpin + 'static>,
     ) -> Result<i32, std::io::Error> {
         println!("Erased::erased for T: Generic");
         self.generic_fn(stream).await
+    }
+}
+
+struct Adapter {
+    service: Box<dyn ErasedGeneric + Send + Sync>,
+}
+
+impl Adapter {
+    async fn use_service<S>(&self, stream: S) -> Result<i32, std::io::Error>
+    where
+        S: Stream<Item = i32> + Send + Sync + Unpin + 'static,
+    {
+        self.service.generic_fn(stream).await
     }
 }
 
@@ -93,4 +106,26 @@ async fn main() {
     // object and we are invoking a generic method on it.
     let res = trait_object.generic_fn(stream).await;
     println!("res: {}", res.expect("res"));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_generic() {
+        let mut service = MockGeneric::new();
+        let r: Result<i32, std::io::Error> = Ok(5);
+        service.expect_generic_fn().times(1).return_once(move |_| r);
+
+        let adapter = Adapter {
+            service: Box::new(service),
+        };
+
+        let stream = futures::stream::iter(vec![1, 3, 5, 7]);
+
+        let res = adapter.use_service(stream).await;
+
+        assert_eq!(res.unwrap(), 5);
+    }
 }
