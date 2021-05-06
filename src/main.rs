@@ -3,7 +3,6 @@ use futures::stream::{Stream, StreamExt};
 // This code taken from David Tolnay's erased-serde library,
 
 // This trait is not object safe.
-#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 trait Generic {
     async fn generic_fn<S>(&self, mut stream: S) -> Result<i32, std::io::Error>
@@ -30,6 +29,7 @@ where
 /////////////////////////////////////////////////////////////////////
 // This is an object-safe equivalent that interoperates seamlessly.
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 trait ErasedGeneric {
     // Replace the generic parameter with a trait object.
@@ -114,9 +114,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_generic() {
-        let mut service = MockGeneric::new();
+        let mut service = MockErasedGeneric::new();
         let r: Result<i32, std::io::Error> = Ok(5);
-        service.expect_generic_fn().times(1).return_once(move |_| r);
+        service
+            .expect_erased_fn()
+            .times(1)
+            .return_once(move |_: Box<dyn Stream<Item = i32> + Send + Sync + Unpin + 'static>| r);
 
         let adapter = Adapter {
             service: Box::new(service),
