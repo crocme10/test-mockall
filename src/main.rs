@@ -100,16 +100,12 @@ async fn main() {
 mod tests {
     use super::*;
 
-    pub struct MockGeneric<'a> {
-        pub generate_index: mock::Mock<
-            'a,
-            (Box<dyn Stream<Item = i32> + Send + Sync + Unpin + 'a>,),
-            Result<i32, std::io::Error>,
-        >,
+    pub struct MockGeneric<'a, T> {
+        pub generate_index: mock::Mock<'a, (T,), Result<i32, std::io::Error>>,
     }
 
     #[cfg(test)]
-    impl<'a> MockGeneric<'a> {
+    impl<'a, T> MockGeneric<'a, T> {
         fn new() -> Self {
             MockGeneric {
                 generate_index: mock::Mock::new(Ok(43)),
@@ -119,12 +115,15 @@ mod tests {
 
     #[cfg(test)]
     #[async_trait]
-    impl<'a> Generic for MockGeneric<'a> {
+    impl<'a, T> Generic for MockGeneric<'a, T>
+    where
+        T: From<&'a (dyn Stream<Item = i32> + Send + Sync + Unpin + 'a)> + Sync,
+    {
         async fn generic_fn<'b, S: 'b>(&self, stream: S) -> Result<i32, std::io::Error>
         where
             S: Stream<Item = i32> + Send + Sync + Unpin + 'b,
         {
-            self.generate_index.call((Box::new(stream),))
+            self.generate_index.call((T::from(&stream),))
         }
     }
 }
