@@ -4,11 +4,10 @@ use futures::stream::{Stream, StreamExt};
 
 // This trait is not object safe.
 #[async_trait]
-#[cfg_attr(test, mockall::automock)]
 trait Generic {
-    async fn generic_fn<S>(&self, mut stream: S) -> Result<i32, std::io::Error>
+    async fn generic_fn<'a, S>(&self, mut stream: S) -> Result<i32, std::io::Error>
     where
-        S: Stream<Item = i32> + Send + Sync + Unpin + 'static;
+        S: Stream<Item = i32> + Send + Sync + Unpin + 'a;
 }
 
 // Implement the trait for boxed pointers to some type `T` which
@@ -18,9 +17,9 @@ impl<'a, T: ?Sized> Generic for Box<T>
 where
     T: Generic + Send + Sync,
 {
-    async fn generic_fn<S>(&self, stream: S) -> Result<i32, std::io::Error>
+    async fn generic_fn<'b, S>(&self, stream: S) -> Result<i32, std::io::Error>
     where
-        S: Stream<Item = i32> + Send + Sync + Unpin + 'static,
+        S: Stream<Item = i32> + Send + Sync + Unpin + 'b,
     {
         println!("Generic::generic for Box<T> T: Generic");
         (**self).generic_fn(stream).await
@@ -33,9 +32,9 @@ where
 #[async_trait]
 trait ErasedGeneric {
     // Replace the generic parameter with a trait object.
-    async fn erased_fn(
+    async fn erased_fn<'a>(
         &self,
-        stream: &'static mut (dyn Stream<Item = i32> + Send + Sync + Unpin + 'static),
+        stream: &'a mut (dyn Stream<Item = i32> + Send + Sync + Unpin + 'a),
     ) -> Result<i32, std::io::Error>;
 }
 
@@ -43,9 +42,9 @@ trait ErasedGeneric {
 // object-safe trait.
 #[async_trait]
 impl Generic for (dyn ErasedGeneric + Send + Sync) {
-    async fn generic_fn<S>(&self, mut stream: S) -> Result<i32, std::io::Error>
+    async fn generic_fn<'a, S>(&self, mut stream: S) -> Result<i32, std::io::Error>
     where
-        S: Stream<Item = i32> + Send + Sync + Unpin + 'static,
+        S: Stream<Item = i32> + Send + Sync + Unpin + 'a,
     {
         println!("Generic::generic for dyn Erased");
         self.erased_fn(&mut stream).await
@@ -59,9 +58,9 @@ impl<T> ErasedGeneric for T
 where
     T: Generic + Send + Sync,
 {
-    async fn erased_fn(
+    async fn erased_fn<'a>(
         &self,
-        stream: &'static mut (dyn Stream<Item = i32> + Send + Sync + Unpin + 'static),
+        stream: &'a mut (dyn Stream<Item = i32> + Send + Sync + Unpin + 'a),
     ) -> Result<i32, std::io::Error> {
         println!("Erased::erased for T: Generic");
         self.generic_fn(stream).await
@@ -75,9 +74,9 @@ async fn main() {
     struct S;
     #[async_trait]
     impl Generic for S {
-        async fn generic_fn<S>(&self, stream: S) -> Result<i32, std::io::Error>
+        async fn generic_fn<'a, S>(&self, stream: S) -> Result<i32, std::io::Error>
         where
-            S: Stream<Item = i32> + Send + Sync + Unpin + 'static,
+            S: Stream<Item = i32> + Send + Sync + Unpin + 'a,
         {
             let sum: i32 = stream.collect::<Vec<i32>>().await.iter().sum();
             Ok(sum)
