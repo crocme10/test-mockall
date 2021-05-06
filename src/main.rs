@@ -1,11 +1,13 @@
 use async_trait::async_trait;
 use futures::stream::{Stream, StreamExt};
-// This code taken from David Tolnay's erased-serde library,
+
+#[cfg(test)]
+mod mock;
 
 // This trait is not object safe.
 #[async_trait]
 trait Generic {
-    async fn generic_fn<'a, S>(&self, mut stream: S) -> Result<i32, std::io::Error>
+    async fn generic_fn<'a, S: 'a>(&self, mut stream: S) -> Result<i32, std::io::Error>
     where
         S: Stream<Item = i32> + Send + Sync + Unpin + 'a;
 }
@@ -17,7 +19,7 @@ impl<'a, T: ?Sized> Generic for Box<T>
 where
     T: Generic + Send + Sync,
 {
-    async fn generic_fn<'b, S>(&self, stream: S) -> Result<i32, std::io::Error>
+    async fn generic_fn<'b, S: 'b>(&self, stream: S) -> Result<i32, std::io::Error>
     where
         S: Stream<Item = i32> + Send + Sync + Unpin + 'b,
     {
@@ -74,7 +76,7 @@ async fn main() {
     struct S;
     #[async_trait]
     impl Generic for S {
-        async fn generic_fn<'a, S>(&self, stream: S) -> Result<i32, std::io::Error>
+        async fn generic_fn<'a, S: 'a>(&self, stream: S) -> Result<i32, std::io::Error>
         where
             S: Stream<Item = i32> + Send + Sync + Unpin + 'a,
         {
@@ -92,4 +94,37 @@ async fn main() {
     // object and we are invoking a generic method on it.
     let res = trait_object.generic_fn(stream).await;
     println!("res: {}", res.expect("res"));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    pub struct MockGeneric<'a> {
+        pub generate_index: mock::Mock<
+            'a,
+            (Box<dyn Stream<Item = i32> + Send + Sync + Unpin + 'a>,),
+            Result<i32, std::io::Error>,
+        >,
+    }
+
+    #[cfg(test)]
+    impl<'a> MockGeneric<'a> {
+        fn new() -> Self {
+            MockGeneric {
+                generate_index: mock::Mock::new(Ok(43)),
+            }
+        }
+    }
+
+    #[cfg(test)]
+    #[async_trait]
+    impl<'a> Generic for MockGeneric<'a> {
+        async fn generic_fn<'b, S: 'b>(&self, stream: S) -> Result<i32, std::io::Error>
+        where
+            S: Stream<Item = i32> + Send + Sync + Unpin + 'b,
+        {
+            self.generate_index.call((Box::new(stream),))
+        }
+    }
 }
